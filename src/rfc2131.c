@@ -205,8 +205,12 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    subnet_addr = option_addr(sopt);
 
 	  /* look for RFC5107 server-identifier-override */
-	  if ((sopt = option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_SERVER_OR, INADDRSZ)))
+	  if ((sopt = option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_SERVER_OR, INADDRSZ))) {
+      // triggered when the incoming packet includes option 82 (server-override).
+      // does not depend on the config at all.
 	    override = option_addr(sopt);
+      my_syslog(MS_DHCP | LOG_WARNING, _("override was configured on line 209."));
+    }
 	  
 	  /* if a circuit-id or remote-is option is provided, exact-match to options. */ 
 	  for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
@@ -839,14 +843,25 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
      configured for all relays, or by address. */
   if (daemon->override && mess->giaddr.s_addr != 0 && override.s_addr == 0)
     {
-      if (!daemon->override_relays)
-	override = mess->giaddr;
+      my_syslog(MS_DHCP | LOG_WARNING, _("matched condition on 842."));
+      if (!daemon->override_relays) {
+        override = mess->giaddr;
+        my_syslog(MS_DHCP | LOG_WARNING, _("848 !deamon->override_relays was true"));
+      }
       else
 	{
 	  struct addr_list *l;
-	  for (l = daemon->override_relays; l; l = l->next)
+    char buffer3[INET_ADDRSTRLEN];
+	  for (l = daemon->override_relays; l; l = l->next) {
+        my_syslog(MS_DHCP | LOG_WARNING, _("848 !deamon->override_relays was false"));
+        inet_ntop(AF_INET, &l->addr.s_addr, buffer3, sizeof(buffer3));
+        my_syslog(MS_DHCP | LOG_WARNING, _("858 l->addr.s_addr=%s"), buffer3);
+        inet_ntop(AF_INET, &mess->giaddr.s_addr, buffer3, sizeof(buffer3));
+        my_syslog(MS_DHCP | LOG_WARNING, _("858 mess->giaddr.s_addr=%s"), buffer3);
 	    if (l->addr.s_addr == mess->giaddr.s_addr)
+        my_syslog(MS_DHCP | LOG_WARNING, _("breaking on 863"));
 	      break;
+    }
 	  if (l)
 	    override = mess->giaddr;
 	}
@@ -860,6 +875,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   if (daemon->enable_pxe &&
       is_pxe_client(mess, sz, &pxevendor))
     {
+      my_syslog(MS_DHCP | LOG_WARNING, _("client is a PXE client (line 875)"));
       if ((opt = option_find(mess, sz, OPTION_PXE_UUID, 17)))
 	{
 	  memcpy(pxe_uuid, option_ptr(opt, 0), 17);
@@ -1178,6 +1194,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	
 
     case DHCPREQUEST:
+      my_syslog(MS_DHCP | LOG_INFO, _("in-case DHCPREQUEST"));
       if (ignore || have_config(config, CONFIG_DISABLE))
 	return 0;
       if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))
@@ -1192,17 +1209,33 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    {
 	      /* SELECTING */
 	      selecting = 1;
+      my_syslog(MS_DHCP | LOG_INFO, _(" SELECTING mode"));
 	      
 	      if (override.s_addr != 0)
 		{
-		  if (option_addr(opt).s_addr != override.s_addr)
+      my_syslog(MS_DHCP | LOG_INFO, _("override.s_addr != 0"));
+		  if (option_addr(opt).s_addr != override.s_addr) {
+        char buffer[INET_ADDRSTRLEN];
+        char buffer2[INET_ADDRSTRLEN];
+        struct in_addr temp;
+
+        temp = option_addr(opt);
+
+        inet_ntop(AF_INET, &override.s_addr, buffer, sizeof(buffer));
+        inet_ntop(AF_INET, &temp.s_addr, buffer2, sizeof(buffer2));
+
+
+        my_syslog(MS_DHCP | LOG_INFO, _("override.s_addr option_addr(opt)=%s VS override.s_addr=%s, returning 0"), buffer2, buffer);
 		    return 0;
+      }
 		}
 	      else 
 		{
 		  for (; context; context = context->current)
-		    if (context->local.s_addr == option_addr(opt).s_addr)
+		    if (context->local.s_addr == option_addr(opt).s_addr) {
+          my_syslog(MS_DHCP | LOG_INFO, _("found context"));
 		      break;
+        }
 		  
 		  if (!context)
 		    {
@@ -1211,17 +1244,24 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 			 Have to set override to make sure we echo back the correct server-id */
 		      struct irec *intr;
 		      
+          my_syslog(MS_DHCP | LOG_INFO, _("enumerating interfaces"));
 		      enumerate_interfaces(0);
 
 		      for (intr = daemon->interfaces; intr; intr = intr->next)
 			if (intr->addr.sa.sa_family == AF_INET &&
 			    intr->addr.in.sin_addr.s_addr == option_addr(opt).s_addr &&
-			    intr->tftp_ok)
-			  break;
+			    intr->tftp_ok) {
+          my_syslog(MS_DHCP | LOG_INFO, _("matched interface"));
+          break;
+                }
+        
+        my_syslog(MS_DHCP | LOG_INFO, _("no local interface matches server id address. checking for override."));
 
-		      if (intr)
-			override = intr->addr.in.sin_addr;
-		      else
+		      if (intr) {
+            override = intr->addr.in.sin_addr;
+            my_syslog(MS_DHCP | LOG_INFO, _("override applied"));
+          } 
+          else
 			{
 			  /* In auth mode, a REQUEST sent to the wrong server
 			     should be faulted, so that the client establishes 
@@ -1229,6 +1269,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 			  if (!option_bool(OPT_AUTHORITATIVE))
 			    return 0;
 			  message = _("wrong server-ID");
+        my_syslog(MS_DHCP | LOG_INFO, _("sending back wrong server-ID"));
 			}
 		    }
 		}
