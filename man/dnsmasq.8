@@ -2026,6 +2026,26 @@ form is used, there must be a route to all of the addresses configured on the in
 The two-address form of shared-network is also usable with a DHCP relay: the first address
 is the address of the relay and the second, as before, specifies an extra subnet which
 addresses may be allocated from.
+.TP
+.B --dhcp-allowed-srvids[=<ip addr>]
+(IPv4 Only) If the DHCP server is running inside a container or behind a load balancer, the
+DHCPREQUEST arriving at dnsmasq for processing may have a Server ID (option 54)
+configured with an IP address that is not assigned to the local interface. In
+this case, dnsmasq will check if the 'Server Identifier Override' option was
+set in the incoming packet.
+.IP
+If it was not set, the packet is dropped.
+.IP
+If it was set, dnsmasq evaluates the Server ID against the value provided in \'Server ID Override\' suboption
+11, as outlined in RFC5107.
+.IP
+In both cases, there is no match against the \'backend\' IP address configured on the interface.
+This results in the DHCPNAK being returned with the \'wrong server\' message.
+.IP
+The \fB\-\-dhcp\-allowed\-srvids\fP option allows turning off this security
+mechanism for specific address(es). When enabled, the incoming DHCPREQUEST is
+evaluated against the provided value(s) instead of the addresses configured on
+the local interfaces.
 
 .TP
 .B \-s, --domain=<domain>[[,<address range>[,local]]|<interface>]

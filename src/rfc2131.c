@@ -1202,8 +1202,22 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      if (override.s_addr != 0)
 		{
-		  if (option_addr(opt).s_addr != override.s_addr)
-		    return 0;
+		  if (option_addr(opt).s_addr != override.s_addr) {
+		    if (daemon->allowing_custom_srvids) {
+			struct addr_list *l;
+			for (l = daemon->allowed_srvids; l; l = l->next)
+			  if (l->addr.s_addr == option_addr(opt).s_addr) {
+			    inet_ntop(AF_INET, &l->addr.s_addr, daemon->addrbuff, ADDRSTRLEN);
+			    my_syslog(MS_DHCP | LOG_DEBUG, _("ServerID %s is explicitly allowed."),
+				        daemon->addrbuff);
+			    break;
+			  }
+			if (!l)
+			  return 0;
+		    }
+		   else
+			return 0;
+		  }
 		}
 	      else 
 		{
@@ -1230,12 +1244,28 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 			override = intr->addr.in.sin_addr;
 		      else
 			{
-			  /* In auth mode, a REQUEST sent to the wrong server
-			     should be faulted, so that the client establishes 
-			     communication with us, otherwise, silently ignore. */
-			  if (!option_bool(OPT_AUTHORITATIVE))
-			    return 0;
-			  message = _("wrong server-ID");
+			  if (daemon->allowing_custom_srvids) {
+				my_syslog(MS_DHCP | LOG_DEBUG, _("checking allowed custom serverids"));
+				struct addr_list *l;
+				for (l = daemon->allowed_srvids; l; l = l->next)
+				  if (l->addr.s_addr == option_addr(opt).s_addr)
+				    break;
+				if (l) {
+		              inet_ntop(AF_INET, &l->addr.s_addr, daemon->addrbuff, ADDRSTRLEN);
+				  my_syslog(MS_DHCP | LOG_DEBUG, _("ServerID %s is explicitly allowed."),
+						daemon->addrbuff);
+				  override = option_addr(opt);
+				}
+				else
+				{
+				  /* In auth mode, a REQUEST sent to the wrong server
+				  should be faulted, so that the client establishes
+				  communication with us, otherwise, silently ignore. */
+				  if (!option_bool(OPT_AUTHORITATIVE))
+				    return 0;
+				  message = _("wrong server-ID");
+				}
+			  }
 			}
 		    }
 		}

@@ -192,6 +192,7 @@ struct myoption {
 #define LOPT_NO_DHCP4      383
 #define LOPT_MAX_PROCS     384
 #define LOPT_DNSSEC_LIMITS 385
+#define LOPT_DHCP_AL_SVID  386
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -388,6 +389,7 @@ static const struct myoption opts[] =
     { "use-stale-cache", 2, 0 , LOPT_STALE_CACHE },
     { "no-ident", 0, 0, LOPT_NO_IDENT },
     { "max-tcp-connections", 1, 0, LOPT_MAX_PROCS },
+    { "dhcp-allowed-srvids", 1, 0, LOPT_DHCP_AL_SVID },
     { NULL, 0, 0, 0 }
   };
 
@@ -591,6 +593,7 @@ static struct {
   { LOPT_NO_IDENT, OPT_NO_IDENT, NULL, gettext_noop("Do not add CHAOS TXT records."), NULL },
   { LOPT_CACHE_RR, ARG_DUP, "<RR-type>", gettext_noop("Cache this DNS resource record type."), NULL },
   { LOPT_MAX_PROCS, ARG_ONE, "<integer>", gettext_noop("Maximum number of concurrent tcp connections."), NULL },
+  { LOPT_DHCP_AL_SVID, ARG_DUP, "[=<ipaddr>]...", gettext_noop("Allow these ServerIDs"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -4720,6 +4723,18 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	break;
       }
+    case LOPT_DHCP_AL_SVID:
+	daemon->allowing_custom_srvids = 1;
+	while (arg) {
+	struct addr_list *new = opt_malloc(sizeof(struct addr_list));
+	comma = split(arg);
+	if (!(inet_pton(AF_INET, arg, &new->addr) > 0))
+	  ret_err_free(_("bad dhcp-allowed-srvids address"), new);
+	new->next = daemon->allowed_srvids;
+	daemon->allowed_srvids = new;
+	arg = comma;
+	}
+	break;
 
 #endif
       
