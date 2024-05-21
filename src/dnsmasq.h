@@ -1175,11 +1175,13 @@ extern struct daemon {
   struct pxe_service *pxe_services;
   struct tag_if *tag_if; 
   struct addr_list *override_relays;
+  struct addr_list *allowed_srvids;
   struct dhcp_relay *relay4, *relay6;
   struct delay_config *delay_conf;
   int override;
   int enable_pxe;
   int doing_ra, doing_dhcp6;
+  int allowing_custom_srvids;
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *dhcp_gen_names; 
   struct dhcp_netid_list *force_broadcast, *bootp_dynamic;
   struct hostsfile *dhcp_hosts_file, *dhcp_opts_file;

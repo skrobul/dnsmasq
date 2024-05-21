@@ -186,6 +186,7 @@ struct myoption {
 #define LOPT_STALE_CACHE   377
 #define LOPT_NORR          378
 #define LOPT_NO_IDENT      379
+#define LOPT_DHCP_AL_SVID  386
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -376,6 +377,7 @@ static const struct myoption opts[] =
     { "fast-dns-retry", 2, 0, LOPT_FAST_RETRY },
     { "use-stale-cache", 2, 0 , LOPT_STALE_CACHE },
     { "no-ident", 0, 0, LOPT_NO_IDENT },
+    { "dhcp-allowed-srvids", 1, 0, LOPT_DHCP_AL_SVID },
     { NULL, 0, 0, 0 }
   };
 
@@ -573,6 +575,7 @@ static struct {
   { LOPT_QUIET_TFTP, OPT_QUIET_TFTP, NULL, gettext_noop("Do not log routine TFTP."), NULL },
   { LOPT_NORR, OPT_NORR, NULL, gettext_noop("Suppress round-robin ordering of DNS records."), NULL },
   { LOPT_NO_IDENT, OPT_NO_IDENT, NULL, gettext_noop("Do not add CHAOS TXT records."), NULL },
+  { LOPT_DHCP_AL_SVID, ARG_DUP, "[=<ipaddr>]...", gettext_noop("Allow these ServerIDs"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -4632,6 +4635,18 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	break;
       }
+    case LOPT_DHCP_AL_SVID:
+	daemon->allowing_custom_srvids = 1;
+	while (arg) {
+	struct addr_list *new = opt_malloc(sizeof(struct addr_list));
+	comma = split(arg);
+	if (!(inet_pton(AF_INET, arg, &new->addr) > 0))
+	  ret_err_free(_("bad dhcp-allowed-srvids address"), new);
+	new->next = daemon->allowed_srvids;
+	daemon->allowed_srvids = new;
+	arg = comma;
+	}
+	break;
 
 #endif
       
